@@ -158,11 +158,11 @@ def upload_to_best_drive():
 
 
 
-def main():
-    """メインの処理。メニューを表示してユーザーの入力を待つ"""
+def run_cli_menu():
+    """コマンドライン用の対話式メニューを実行する関数"""
     while True:
         print("\n==============================")
-        print("  Google Drive Manager Menu")
+        print("  Google Drive Manager (CLI)")
         print("==============================")
         print("1: 登録アカウント一覧を表示")
         print("2: ファイルを自動選択でアップロード")
@@ -176,7 +176,6 @@ def main():
         elif choice == '2':
             upload_to_best_drive()
         elif choice == '3':
-            # 新しいアカウント登録の処理
             new_account_name = input("登録する新しいアカウント名を入力してください (例: user3, private など): ")
             if new_account_name:
                 authenticate(new_account_name)
@@ -185,12 +184,13 @@ def main():
                 print("アカウント名が入力されなかったのでキャンセルしました。")
         elif choice == '0':
             print("プログラムを終了します。")
-            break # 無限ループを抜ける
+            break
         else:
             print("無効な選択です。0から3の番号を入力してください。")
 
+# このファイルが直接実行された時だけ、コマンドラインメニューを起動する
 if __name__ == '__main__':
-    main()
+    run_cli_menu()
 
 def get_accounts_info():
     #"""登録アカウントの情報をリストとして返す"""
@@ -251,3 +251,37 @@ def upload_logic_for_web(file_path):
     else:
         print("\nアップロードに適したアカウントが見つかりませんでした。")
         return False # 失敗したことを伝える
+
+def get_all_files_from_all_accounts():
+    """全アカウントからファイルリストを取得し、アカウント名とセットで返す"""
+    all_files = []
+    token_files = glob.glob('token_*.json')
+
+    if not token_files:
+        return []
+
+    print("全アカウントのファイルリストを取得中...")
+    for token_file in token_files:
+        account_name = token_file.replace('token_', '').replace('.json', '')
+        try:
+            creds = authenticate(account_name)
+            service = build('drive', 'v3', credentials=creds)
+
+            # files().list() を使ってファイル一覧を取得
+            # fields で取得する情報を絞る (id, name)
+            results = service.files().list(
+                pageSize=100, # 一度に取得する最大ファイル数 (上限1000)
+                fields="nextPageToken, files(id, name)"
+            ).execute()
+
+            items = results.get('files', [])
+
+            for item in items:
+                # ファイル情報に、どのアカウントのものかを追加してリストに格納
+                item['account_name'] = account_name
+                all_files.append(item)
+
+        except Exception as e:
+            print(f"[{account_name}] でのファイル取得中にエラー: {e}")
+
+    return all_files

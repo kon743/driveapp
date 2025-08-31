@@ -2,12 +2,17 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from werkzeug.utils import secure_filename
 
-# main.pyから必要な関数をインポート
-from main import get_accounts_info, upload_logic_for_web
+# main.pyから必要な関数をインポート (重複をなくし、一行にまとめました)
+from main import get_accounts_info, upload_logic_for_web, get_all_files_from_all_accounts
 
-app = Flask(__name__)
+# 現在のファイル(app.py)の絶対パスを取得
+basedir = os.path.abspath(os.path.dirname(__file__))
+
+# Flaskアプリケーションのインスタンスを作成
+# template_folder に templates フォルダの絶対パスを指定
+app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'))
+
 # フラッシュメッセージ機能には、セッションを暗号化するための秘密鍵が必要
-# これは好きな文字列で構いません
 app.secret_key = '987654321'
 
 # 一時保存フォルダのパスを設定
@@ -36,10 +41,8 @@ def upload_file_route():
         temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(temp_path)
 
-        # upload_logic_for_web からの True/False の結果を受け取る
         success = upload_logic_for_web(temp_path)
 
-        # 結果に応じてフラッシュメッセージを設定
         if success:
             flash(f"ファイル '{filename}' のアップロードに成功しました！", 'success')
         else:
@@ -50,5 +53,16 @@ def upload_file_route():
 
         return redirect(url_for('index'))
 
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+# ★  ここに /files ルートを配置するのが正しい場所です  ★
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+@app.route('/files')
+def files_list_page():
+    """全ファイル一覧ページ"""
+    files = get_all_files_from_all_accounts()
+    return render_template('files.html', files=files)
+
+
+# この if ブロックの中には、サーバーを起動する app.run() だけを置きます
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True)
