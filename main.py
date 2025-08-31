@@ -80,30 +80,80 @@ def upload_file(service, file_path, account_name):
     except Exception as e:
         print(f"アップロード中に予期せぬエラーが発生しました: {e}")
 
-# ... def main(): はこの下に続く ...
+
+def get_drive_space(service):
+    """Google Driveのストレージ情報を取得し、空き容量を返す"""
+    try:
+        about = service.about().get(fields='storageQuota').execute()
+        quota = about['storageQuota']
+
+        limit = int(quota['limit'])      # 全容量
+        usage = int(quota['usage'])      # 使用量
+        free_space = limit - usage       # 空き容量
+
+        # ギガバイト(GB)に変換して返す
+        return free_space / (1024**3)
+
+    except HttpError as error:
+        print(f"ストレージ情報の取得中にAPIエラーが発生しました: {error}")
+        return 0 # エラー時は0を返す
+
 
 def main():
-    # 1. アップロードするファイルの準備
-    # このプログラムと同じフォルダに 'upload_test.txt' という名前で
-    # テキストファイルを作成し、中に何か文字を書いておいてください。
+    """メインの処理"""
+    # ----------------------------------------------------
+    # 設定項目
+    # ----------------------------------------------------
+    # アップロードするファイルのパスを指定
     file_to_upload = 'upload_test.txt'
+    # ----------------------------------------------------
 
-    # 2. どのアカウントにアップロードするか指定
-    # 'user1', 'user2' など、あなたが登録したアカウント名を指定してください。
-    upload_target_account = 'user1'
+    if not os.path.exists(file_to_upload):
+        print(f"エラー: アップロードするファイル '{file_to_upload}' が見つかりません。")
+        return
 
-    print(f"'{upload_target_account}' アカウントを使って '{file_to_upload}' をアップロードします。")
+    # 登録されている全アカウントの認証ファイルを探す
+    token_files = glob.glob('token_*.json')
+    if not token_files:
+        print("認証済みのGoogleアカウントが見つかりません。")
+        return
 
-    try:
-        # 指定されたアカウントで認証
-        creds = authenticate(upload_target_account)
-        # Google Drive API サービスを構築
+    print("各アカウントの空き容量をチェックしています...")
+
+    best_account = None
+    max_free_space = -1
+
+    # 全アカウントをループして、最も空き容量が多いアカウントを探す
+    for token_file in token_files:
+        account_name = token_file.replace('token_', '').replace('.json', '')
+
+        try:
+            creds = authenticate(account_name)
+            service = build('drive', 'v3', credentials=creds)
+
+            # 空き容量を取得
+            free_space_gb = get_drive_space(service)
+            print(f" - [{account_name}] の空き容量: {free_space_gb:.2f} GB")
+
+            # 現在の最大空き容量よりも大きければ、候補として更新
+            if free_space_gb > max_free_space:
+                max_free_space = free_space_gb
+                best_account = account_name
+
+        except Exception as e:
+            print(f"[{account_name}] の処理中にエラーが発生しました: {e}")
+
+    # 最適なアカウントが見つかったかチェック
+    if best_account:
+        print(f"\n空き容量が最も多いアカウントは [{best_account}] です。（空き容量: {max_free_space:.2f} GB）")
+
+        # 最適なアカウントにファイルをアップロード
+        print("アップロード処理を開始します。")
+        creds = authenticate(best_account)
         service = build('drive', 'v3', credentials=creds)
-        # アップロード関数を呼び出し
-        upload_file(service, file_to_upload, upload_target_account)
-
-    except Exception as e:
-        print(f"処理全体でエラーが発生しました: {e}")
+        upload_file(service, file_to_upload, best_account)
+    else:
+        print("\nアップロードに適したアカウントが見つかりませんでした。")
 
 
 if __name__ == '__main__':
