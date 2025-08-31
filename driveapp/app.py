@@ -1,11 +1,15 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, flash
 from werkzeug.utils import secure_filename
 
 # main.pyから必要な関数をインポート
 from main import get_accounts_info, upload_logic_for_web
 
 app = Flask(__name__)
+# フラッシュメッセージ機能には、セッションを暗号化するための秘密鍵が必要
+# これは好きな文字列で構いません
+app.secret_key = '987654321'
+
 # 一時保存フォルダのパスを設定
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -16,34 +20,34 @@ def index():
     accounts = get_accounts_info()
     return render_template('index.html', accounts=accounts)
 
-
-# '/upload' というURLに、POSTメソッドでリクエストが来たときに実行
 @app.route('/upload', methods=['POST'])
 def upload_file_route():
-    # フォームから 'file' という名前のファイルを取得
     if 'file' not in request.files:
-        return redirect(url_for('index')) # ファイルがなければトップに戻る
+        flash('ファイルが選択されていません。')
+        return redirect(url_for('index'))
 
     file = request.files['file']
     if file.filename == '':
-        return redirect(url_for('index')) # ファイル名がなければトップに戻る
+        flash('ファイル名が空です。')
+        return redirect(url_for('index'))
 
     if file:
-        # 安全なファイル名に変換 (例: ../../passwords.txt のような攻撃を防ぐ)
         filename = secure_filename(file.filename)
-        # 一時ファイルの保存パスを生成
         temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        # ファイルを一時保存
         file.save(temp_path)
 
-        # main.pyのアップロードロジックを呼び出す
+        # upload_logic_for_web からの True/False の結果を受け取る
         success = upload_logic_for_web(temp_path)
 
-        # 一時ファイルを削除 (任意ですが、推奨)
+        # 結果に応じてフラッシュメッセージを設定
+        if success:
+            flash(f"ファイル '{filename}' のアップロードに成功しました！", 'success')
+        else:
+            flash(f"ファイル '{filename}' のアップロードに失敗しました。", 'error')
+
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
-        # 処理が終わったらトップページにリダイレクト (戻る)
         return redirect(url_for('index'))
 
 if __name__ == '__main__':
