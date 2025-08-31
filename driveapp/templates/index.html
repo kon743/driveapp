@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Google Drive Manager</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        h1 { color: #333; }
+        table { border-collapse: collapse; width: 50%; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>登録済みGoogleアカウント一覧</h1>
+
+    {% if accounts %}
+        <table>
+            <thead>
+                <tr>
+                    <th>アカウント名</th>
+                    <th>空き容量</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Pythonから渡されたaccountsリストをループして、1行ずつ表示 -->
+                {% for account in accounts %}
+                <tr>
+                    <td>{{ account.name }}</td>
+                    <td>{{ account.free_space }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>登録されているアカウントはありません。</p>
+    {% endif %}
+
+</body>
+</html>

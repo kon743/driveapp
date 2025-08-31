@@ -191,3 +191,30 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+def get_accounts_info():
+    #"""登録アカウントの情報をリストとして返す"""
+    accounts_list = []
+    token_files = glob.glob('token_*.json')
+
+    if not token_files:
+        return [] # アカウントがなければ空のリストを返す
+
+    for token_file in token_files:
+        account_name = token_file.replace('token_', '').replace('.json', '')
+        try:
+            creds = authenticate(account_name)
+            service = build('drive', 'v3', credentials=creds)
+            free_space_gb = get_drive_space(service)
+            # 各アカウントの情報を辞書(dict)としてリストに追加
+            accounts_list.append({
+                'name': account_name,
+                'free_space': f"{free_space_gb:.2f} GB"
+            })
+        except Exception:
+            accounts_list.append({
+                'name': account_name,
+                'free_space': "エラー"
+            })
+
+    return accounts_list
