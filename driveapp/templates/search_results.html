@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}全ファイル一覧 - {{ super() }}{% endblock %}
+{% block title %}検索結果 - {{ super() }}{% endblock %}
 
 {% block content %}
-    <h1>全アカウントのファイル一覧</h1>
+    <!-- 検索キーワードを再度表示する -->
+    <h1>検索結果: "{{ query }}"</h1>
 
     {% if files %}
+        <p>{{ files|length }} 件のファイルが見つかりました。</p>
         <table>
             <thead>
                 <tr>

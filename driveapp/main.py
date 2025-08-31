@@ -312,3 +312,49 @@ def download_file_logic(account_name, file_id):
     except Exception as e:
         print(f"ダウンロード中に予期せぬエラーが発生しました: {e}")
         return None, None
+
+def search_files_in_all_accounts(search_query):
+    """全アカウントを横断してファイルを検索する"""
+    found_files = []
+    token_files = glob.glob('token_*.json')
+
+    if not token_files:
+        return []
+
+    print(f"\n--- DEBUG: 全アカウントで「{search_query}」を検索開始 ---")
+    for token_file in token_files:
+        account_name = token_file.replace('token_', '').replace('.json', '')
+        try:
+            creds = authenticate(account_name)
+            service = build('drive', 'v3', credentials=creds)
+
+            q = f"name contains '{search_query}'"
+
+            # ★★★ DEBUG PRINT 1: 実際にAPIに送るクエリを表示 ★★★
+            #print(f"[{account_name}] 実行クエリ: q=\"{q}\"")
+
+            results = service.files().list(
+                q=q,
+                pageSize=10, # デバッグのため少し絞る
+                fields="nextPageToken, files(id, name)"
+            ).execute()
+
+            # ★★★ DEBUG PRINT 2: APIからの生の応答を表示 ★★★
+            #print(f"[{account_name}] APIからの応答: {results}")
+
+            items = results.get('files', [])
+
+            if not items:
+                print(f"[{account_name}] -> 検索ヒットなし")
+            else:
+                print(f"[{account_name}] -> {len(items)}件ヒット！")
+
+            for item in items:
+                item['account_name'] = account_name
+                found_files.append(item)
+
+        except Exception as e:
+            print(f"[{account_name}] での検索中にエラー: {e}")
+
+    print("--- DEBUG: 検索終了 ---\n")
+    return found_files

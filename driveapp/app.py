@@ -3,7 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from werkzeug.utils import secure_filename
 
 # main.pyから必要な関数をインポート (重複をなくし、一行にまとめました)
-from main import get_accounts_info, upload_logic_for_web, get_all_files_from_all_accounts, download_file_logic
+from main import get_accounts_info, upload_logic_for_web, get_all_files_from_all_accounts, download_file_logic,search_files_in_all_accounts
 
 # 現在のファイル(app.py)の絶対パスを取得
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -80,7 +80,19 @@ def download_file_route(account_name, file_id):
     # ファイルのコンテンツを、ヘッダー情報と共にブラウザに返す
     return (file_content, 200, headers)
 
+@app.route('/search')
+def search_page():
+    """検索結果ページ"""
+    # URLの?query=... の部分から検索キーワードを取得
+    query = request.args.get('query', '')
 
+    files = []
+    if query:
+        # main.pyの検索関数を呼び出す
+        files = search_files_in_all_accounts(query)
+
+    # 取得したデータをHTMLテンプレートに渡して、Webページを生成
+    return render_template('search_results.html', files=files, query=query)
 
 # この if ブロックの中には、サーバーを起動する app.run() だけを置きます
 if __name__ == '__main__':
