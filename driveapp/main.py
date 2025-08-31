@@ -218,3 +218,36 @@ def get_accounts_info():
             })
 
     return accounts_list
+def upload_logic_for_web(file_path):
+    """Webからのアップロードリクエストを処理する関数"""
+    token_files = glob.glob('token_*.json')
+    if not token_files:
+        print("アップロード先のアカウントが登録されていません。")
+        return False # 失敗したことを伝える
+
+    print("\n各アカウントの空き容量をチェックしています...")
+    best_account = None
+    max_free_space = -1
+
+    for token_file in token_files:
+        account_name = token_file.replace('token_', '').replace('.json', '')
+        try:
+            creds = authenticate(account_name)
+            service = build('drive', 'v3', credentials=creds)
+            free_space_gb = get_drive_space(service)
+            print(f" - [{account_name}] 空き容量: {free_space_gb:.2f} GB")
+            if free_space_gb > max_free_space:
+                max_free_space = free_space_gb
+                best_account = account_name
+        except Exception as e:
+            print(f" - [{account_name}] 情報取得エラー: {e}")
+
+    if best_account:
+        print(f"\n空き容量が最も多いアカウント [{best_account}] にアップロードします。")
+        creds = authenticate(best_account)
+        service = build('drive', 'v3', credentials=creds)
+        upload_file(service, file_path, best_account)
+        return True # 成功したことを伝える
+    else:
+        print("\nアップロードに適したアカウントが見つかりませんでした。")
+        return False # 失敗したことを伝える
