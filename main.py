@@ -99,62 +99,95 @@ def get_drive_space(service):
         return 0 # エラー時は0を返す
 
 
-def main():
-    """メインの処理"""
-    # ----------------------------------------------------
-    # 設定項目
-    # ----------------------------------------------------
-    # アップロードするファイルのパスを指定
-    file_to_upload = 'upload_test.txt'
-    # ----------------------------------------------------
-
-    if not os.path.exists(file_to_upload):
-        print(f"エラー: アップロードするファイル '{file_to_upload}' が見つかりません。")
-        return
-
-    # 登録されている全アカウントの認証ファイルを探す
+def list_accounts():
+    """登録されている全アカウントの情報を一覧表示する"""
+    print("\n--- 登録済みアカウント一覧 ---")
     token_files = glob.glob('token_*.json')
     if not token_files:
-        print("認証済みのGoogleアカウントが見つかりません。")
+        print("アカウントが登録されていません。")
         return
 
-    print("各アカウントの空き容量をチェックしています...")
-
-    best_account = None
-    max_free_space = -1
-
-    # 全アカウントをループして、最も空き容量が多いアカウントを探す
     for token_file in token_files:
         account_name = token_file.replace('token_', '').replace('.json', '')
-
         try:
             creds = authenticate(account_name)
             service = build('drive', 'v3', credentials=creds)
-
-            # 空き容量を取得
             free_space_gb = get_drive_space(service)
-            print(f" - [{account_name}] の空き容量: {free_space_gb:.2f} GB")
+            print(f" - アカウント名: {account_name}, 空き容量: {free_space_gb:.2f} GB")
+        except Exception as e:
+            print(f" - アカウント名: {account_name}, 情報取得エラー: {e}")
+    print("--------------------------")
 
-            # 現在の最大空き容量よりも大きければ、候補として更新
+
+def upload_to_best_drive():
+    """空き容量が最大のドライブにファイルをアップロードする"""
+    file_to_upload = input("アップロードするファイルのパスを入力してください: ")
+    if not os.path.exists(file_to_upload):
+        print(f"エラー: ファイル '{file_to_upload}' が見つかりません。")
+        return
+
+    token_files = glob.glob('token_*.json')
+    if not token_files:
+        print("アップロード先のアカウントが登録されていません。")
+        return
+
+    print("\n各アカウントの空き容量をチェックしています...")
+    best_account = None
+    max_free_space = -1
+
+    for token_file in token_files:
+        account_name = token_file.replace('token_', '').replace('.json', '')
+        try:
+            creds = authenticate(account_name)
+            service = build('drive', 'v3', credentials=creds)
+            free_space_gb = get_drive_space(service)
+            print(f" - [{account_name}] 空き容量: {free_space_gb:.2f} GB")
             if free_space_gb > max_free_space:
                 max_free_space = free_space_gb
                 best_account = account_name
-
         except Exception as e:
-            print(f"[{account_name}] の処理中にエラーが発生しました: {e}")
+            print(f" - [{account_name}] 情報取得エラー: {e}")
 
-    # 最適なアカウントが見つかったかチェック
     if best_account:
-        print(f"\n空き容量が最も多いアカウントは [{best_account}] です。（空き容量: {max_free_space:.2f} GB）")
-
-        # 最適なアカウントにファイルをアップロード
-        print("アップロード処理を開始します。")
+        print(f"\n空き容量が最も多いアカウント [{best_account}] にアップロードします。")
         creds = authenticate(best_account)
         service = build('drive', 'v3', credentials=creds)
         upload_file(service, file_to_upload, best_account)
     else:
         print("\nアップロードに適したアカウントが見つかりませんでした。")
 
+
+
+def main():
+    """メインの処理。メニューを表示してユーザーの入力を待つ"""
+    while True:
+        print("\n==============================")
+        print("  Google Drive Manager Menu")
+        print("==============================")
+        print("1: 登録アカウント一覧を表示")
+        print("2: ファイルを自動選択でアップロード")
+        print("3: 新しいアカウントを登録")
+        print("0: プログラムを終了")
+
+        choice = input("操作を選んで番号を入力してください: ")
+
+        if choice == '1':
+            list_accounts()
+        elif choice == '2':
+            upload_to_best_drive()
+        elif choice == '3':
+            # 新しいアカウント登録の処理
+            new_account_name = input("登録する新しいアカウント名を入力してください (例: user3, private など): ")
+            if new_account_name:
+                authenticate(new_account_name)
+                print(f"アカウント '{new_account_name}' の認証が完了しました。")
+            else:
+                print("アカウント名が入力されなかったのでキャンセルしました。")
+        elif choice == '0':
+            print("プログラムを終了します。")
+            break # 無限ループを抜ける
+        else:
+            print("無効な選択です。0から3の番号を入力してください。")
 
 if __name__ == '__main__':
     main()
