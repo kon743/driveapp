@@ -313,41 +313,52 @@ def download_file_logic(account_name, file_id):
         print(f"ダウンロード中に予期せぬエラーが発生しました: {e}")
         return None, None
 
-def search_files_in_all_accounts(search_query):
-    """全アカウントを横断してファイルを検索する"""
+
+def search_files_in_all_accounts(search_query, mime_type):
+    """全アカウントを横断してファイルを検索する (MIMEタイプ対応)"""
     found_files = []
     token_files = glob.glob('token_*.json')
 
     if not token_files:
         return []
 
-    print(f"\n--- DEBUG: 全アカウントで「{search_query}」を検索開始 ---")
+    print(f"全アカウントで「{search_query}」「{mime_type}」を検索中...")
+
+    # 複数の検索条件をリストで管理
+    query_parts = []
+
+    # 1. ファイル名の条件を追加
+    if search_query:
+        # 特殊文字をエスケープする (例: ' -> \')
+        escaped_query = search_query.replace("'", "\\'")
+        query_parts.append(f"name contains '{escaped_query}'")
+
+    # 2. MIMEタイプの条件を追加
+    if mime_type:
+        query_parts.append(f"mimeType = '{mime_type}'")
+
+    # 条件が何もなければ、検索を実行しない
+    if not query_parts:
+        return []
+
+    # 'and' で各条件を連結して、最終的なクエリを作成
+    final_query = " and ".join(query_parts)
+
     for token_file in token_files:
         account_name = token_file.replace('token_', '').replace('.json', '')
         try:
             creds = authenticate(account_name)
             service = build('drive', 'v3', credentials=creds)
 
-            q = f"name contains '{search_query}'"
-
-            # ★★★ DEBUG PRINT 1: 実際にAPIに送るクエリを表示 ★★★
-            #print(f"[{account_name}] 実行クエリ: q=\"{q}\"")
+            print(f"[{account_name}] 実行クエリ: q=\"{final_query}\"")
 
             results = service.files().list(
-                q=q,
-                pageSize=10, # デバッグのため少し絞る
+                q=final_query,
+                pageSize=100,
                 fields="nextPageToken, files(id, name)"
             ).execute()
 
-            # ★★★ DEBUG PRINT 2: APIからの生の応答を表示 ★★★
-            #print(f"[{account_name}] APIからの応答: {results}")
-
             items = results.get('files', [])
-
-            if not items:
-                print(f"[{account_name}] -> 検索ヒットなし")
-            else:
-                print(f"[{account_name}] -> {len(items)}件ヒット！")
 
             for item in items:
                 item['account_name'] = account_name
@@ -356,5 +367,4 @@ def search_files_in_all_accounts(search_query):
         except Exception as e:
             print(f"[{account_name}] での検索中にエラー: {e}")
 
-    print("--- DEBUG: 検索終了 ---\n")
     return found_files

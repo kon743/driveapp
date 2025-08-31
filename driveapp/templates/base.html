@@ -33,8 +33,27 @@
                 <a href="/">トップ</a>
                 <a href="/files">全ファイル一覧</a>
             </nav>
-        <form action="/search" method="get" class="search-form">
-            <input type="text" name="query" placeholder="ファイル名を検索..." required>
+                <form action="/search" method="get" class="search-form">
+            <input type="text" name="query" placeholder="ファイル名を検索..." value="{{ query or '' }}">
+            <select name="mimeType">
+                <option value="" {% if not mime_type %}selected{% endif %}>すべてのファイルタイプ</option>
+                <optgroup label="ドキュメント">
+                    <option value="application/pdf" {% if mime_type == 'application/pdf' %}selected{% endif %}>PDF</option>
+                    <option value="application/vnd.google-apps.document" {% if mime_type == 'application/vnd.google-apps.document' %}selected{% endif %}>Google ドキュメント</option>
+                    <option value="application/msword" {% if mime_type == 'application/msword' %}selected{% endif %}>Word</option>
+                </optgroup>
+                <optgroup label="スプレッドシート">
+                    <option value="application/vnd.google-apps.spreadsheet" {% if mime_type == 'application/vnd.google-apps.spreadsheet' %}selected{% endif %}>Google スプレッドシート</option>
+                    <option value="application/vnd.ms-excel" {% if mime_type == 'application/vnd.ms-excel' %}selected{% endif %}>Excel</option>
+                </optgroup>
+                <optgroup label="画像">
+                    <option value="image/jpeg" {% if mime_type == 'image/jpeg' %}selected{% endif %}>JPEG 画像</option>
+                    <option value="image/png" {% if mime_type == 'image/png' %}selected{% endif %}>PNG 画像</option>
+                </optgroup>
+                <optgroup label="その他">
+                    <option value="application/vnd.google-apps.folder" {% if mime_type == 'application/vnd.google-apps.folder' %}selected{% endif %}>フォルダ</option>
+                </optgroup>
+            </select>
             <button type="submit">検索</button>
         </form>
     </header>

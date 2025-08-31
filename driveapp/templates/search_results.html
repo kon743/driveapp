@@ -3,8 +3,12 @@
 {% block title %}検索結果 - {{ super() }}{% endblock %}
 
 {% block content %}
-    <!-- 検索キーワードを再度表示する -->
-    <h1>検索結果: "{{ query }}"</h1>
+    <h1>検索結果</h1>
+    <p>
+        <strong>キーワード:</strong> "{{ query or '指定なし' }}"<br>
+        <strong>ファイルタイプ:</strong> {{ mime_type_display or "すべて" }}
+    </p>
+
 
     {% if files %}
         <p>{{ files|length }} 件のファイルが見つかりました。</p>
