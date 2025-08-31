@@ -10,7 +10,19 @@
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
         a { color: #007bff; text-decoration: none; }
+
         a:hover { text-decoration: underline; }
+                .btn-download {
+            background-color: #007bff;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            text-decoration: none;
+        }
+        .btn-download:hover {
+            background-color: #0056b3;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
@@ -30,6 +42,13 @@
                 <tr>
                     <td>{{ file.name }}</td>
                     <td>{{ file.account_name }}</td>
+                     <td>
+                        <!-- ダウンロード用のリンクを作成 -->
+                        <!-- /download/<アカウント名>/<ファイルID> というURLを生成 -->
+                        <a href="/download/{{ file.account_name }}/{{ file.id }}" class="btn-download">
+                            ダウンロード
+                        </a>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

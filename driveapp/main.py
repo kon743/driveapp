@@ -285,3 +285,30 @@ def get_all_files_from_all_accounts():
             print(f"[{account_name}] でのファイル取得中にエラー: {e}")
 
     return all_files
+
+def download_file_logic(account_name, file_id):
+    """指定されたアカウントから指定されたファイルをダウンロードし、中身とファイル名を返す"""
+    try:
+        print(f"[{account_name}] からファイルID: {file_id} のダウンロードを開始します。")
+        creds = authenticate(account_name)
+        service = build('drive', 'v3', credentials=creds)
+
+        # まずファイル名を取得する
+        file_metadata = service.files().get(fileId=file_id, fields='name').execute()
+        file_name = file_metadata.get('name')
+
+        # 次にファイルの中身を取得するリクエストを作成
+        request = service.files().get_media(fileId=file_id)
+
+        # リクエストを実行し、ファイルの中身 (バイトデータ) を取得
+        file_content = request.execute()
+
+        print(f"ダウンロード成功: {file_name}")
+        return file_content, file_name
+
+    except HttpError as error:
+        print(f"ダウンロード中にAPIエラーが発生しました: {error}")
+        return None, None
+    except Exception as e:
+        print(f"ダウンロード中に予期せぬエラーが発生しました: {e}")
+        return None, None
