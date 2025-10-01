@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 from main import (
     init_database, update_file_index, get_files_from_db, search_files_in_db,
     get_accounts_info, upload_logic_for_web, download_file_logic,
-    delete_file_logic
+    delete_file_logic, delete_multiple_files_logic
 )
 basedir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'))
@@ -135,6 +135,46 @@ def delete_file_route(account_name, file_id):
     # 削除操作後、直前にいたページに戻る (リファラを取得)
     # もしリファラがなければ、ファイル一覧ページにリダイレクト
     return redirect(request.referrer or url_for('files_list_page'))
+
+@app.route('/delete_multiple', methods=['POST'])
+def delete_multiple_route():
+    """選択された複数のファイルを削除する"""
+    # フォームから送信されたチェックボックスの値を取得
+    # 'selected_files' は 'account_name/file_id' という文字列のリスト
+    selected_files_str = request.form.getlist('selected_files')
+
+        # ★★★★★ デバッグプリントを追加 ★★★★★
+    print("--- DEBUG: /delete_multiple が呼び出されました ---")
+    print("生のフォームデータ:", request.form)
+    # ★★★★★★★★★★★★★★★★★★★★★★★
+
+    selected_files_str = request.form.getlist('selected_files')
+
+    # ★★★★★ デバッグプリントを追加 ★★★★★
+    print("getlist('selected_files') の結果:", selected_files_str)
+    print("------------------------------------------")
+    # ★★★★★★★★★★★★★★★★★★★★★★★
+
+    if not selected_files_str:
+        flash('削除するファイルが選択されていません。', 'error')
+        return redirect(request.referrer or url_for('files_list_page'))
+
+    files_to_delete = []
+    for item in selected_files_str:
+        # 'account_name/file_id' を分割して辞書を作成
+        parts = item.split('/', 1)
+        if len(parts) == 2:
+            files_to_delete.append({'account_name': parts[0], 'file_id': parts[1]})
+
+    success_count, error_count = delete_multiple_files_logic(files_to_delete)
+
+    if success_count > 0:
+        flash(f'{success_count}件のファイルを削除しました。', 'success')
+    if error_count > 0:
+        flash(f'{error_count}件のファイルの削除に失敗しました。', 'error')
+
+    return redirect(request.referrer or url_for('files_list_page'))
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True)

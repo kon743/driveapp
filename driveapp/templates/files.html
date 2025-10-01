@@ -5,10 +5,21 @@
 {% block content %}
     <h1>全アカウントのファイル一覧</h1>
 
-    {% if files %}
+    <!-- ▼▼▼ formタグでテーブル全体を囲む ▼▼▼ -->
+    <form action="/delete_multiple" method="post">
+
+        <!-- ▼▼▼ 一括操作ボタンを追加 ▼▼▼ -->
+        <div class="bulk-actions">
+            <button type="submit" class="btn-delete" onclick="return confirm('選択した全てのファイルを本当に削除しますか？');">
+                選択したファイルを削除
+            </button>
+        </div>
+
         <table>
             <thead>
                 <tr>
+                    <!-- ▼▼▼ 全選択チェックボックスを追加 ▼▼▼ -->
+                    <th><input type="checkbox" id="selectAll"></th>
                     <th>ファイル名</th>
                     <th>保存先アカウント</th>
                     <th>操作</th>
@@ -17,21 +28,31 @@
             <tbody>
                 {% for file in files %}
                 <tr>
+                    <!-- ▼▼▼ 個別チェックボックスを追加 ▼▼▼ -->
+                    <td>
+                        <input type="checkbox" name="selected_files" value="{{ file.account_name }}/{{ file.file_id }}" class="file-checkbox">
+                    </td>
                     <td>{{ file.name }}</td>
                     <td>{{ file.account_name }}</td>
                     <td>
-                        <a href="/download/{{ file.account_name }}/{{  file.file_id  }}" class="btn-download">
+                        <a href="/download/{{ file.account_name }}/{{ file.file_id }}" class="btn-download">
                             ダウンロード
                         </a>
-                            <form action="/delete/{{ file.account_name }}/{{ file.file_id }}" method="post" style="display: inline;" onsubmit="return confirm('本当にこのファイルを削除しますか？');">
-                            <button type="submit" class="btn-delete">削除</button>
-                        </form>
+                        <!-- 単一削除は削除（シンプルにするため） -->
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-    {% else %}
-        <p>ファイルが見つかりませんでした。</p>
-    {% endif %}
+    </form>
+
+    <!-- ▼▼▼ JavaScriptを追加 ▼▼▼ -->
+    <script>
+        document.getElementById('selectAll').addEventListener('click', function(event) {
+            let checkboxes = document.querySelectorAll('.file-checkbox');
+            for (let checkbox of checkboxes) {
+                checkbox.checked = event.target.checked;
+            }
+        });
+    </script>
 {% endblock %}

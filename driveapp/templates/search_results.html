@@ -9,34 +9,52 @@
         <strong>ファイルタイプ:</strong> {{ mime_type_display or "すべて" }}
     </p>
 
-
     {% if files %}
         <p>{{ files|length }} 件のファイルが見つかりました。</p>
-        <table>
-            <thead>
-                <tr>
-                    <th>ファイル名</th>
-                    <th>保存先アカウント</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for file in files %}
-                <tr>
-                    <td>{{ file.name }}</td>
-                    <td>{{ file.account_name }}</td>
-                    <td>
-                        <a href="/download/{{ file.account_name }}/{{ file.file_id }}" class="btn-download">
-                            ダウンロード
-                        </a>
-                        <form action="/delete/{{ file.account_name }}/{{ file.file_id }}" method="post" style="display: inline;" onsubmit="return confirm('本当にこのファイルを削除しますか？');">
-                            <button type="submit" class="btn-delete">削除</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        
+        <form action="/delete_multiple" method="post">
+            <div class="bulk-actions">
+                <button type="submit" class="btn-delete" onclick="return confirm('選択した全てのファイルを本当に削除しますか？');">
+                    選択したファイルを削除
+                </button>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>ファイル名</th>
+                        <th>保存先アカウント</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for file in files %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" name="selected_files" value="{{ file.account_name }}/{{ file.file_id }}" class="file-checkbox">
+                        </td>
+                        <td>{{ file.name }}</td>
+                        <td>{{ file.account_name }}</td>
+                        <td>
+                            <a href="/download/{{ file.account_name }}/{{ file.file_id }}" class="btn-download">
+                                ダウンロード
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </form>
+
+        <script>
+            document.getElementById('selectAll').addEventListener('click', function(event) {
+                let checkboxes = document.querySelectorAll('.file-checkbox');
+                for (let checkbox of checkboxes) {
+                    checkbox.checked = event.target.checked;
+                }
+            });
+        </script>
     {% else %}
         <p>ファイルが見つかりませんでした。</p>
     {% endif %}

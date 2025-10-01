@@ -453,7 +453,7 @@ def get_files_from_db():
     """データベースから全ファイルリストを取得する"""
     conn = sqlite3.connect(DATABASE_FILE)
     # 列名をキーとする辞書として結果を受け取る
-    conn.row_factory = sqlite3.Row 
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute('SELECT file_id, name, account_name FROM files ORDER BY name')
     files = [dict(row) for row in cursor.fetchall()]
@@ -488,45 +488,68 @@ def search_files_in_db(search_query, mime_type):
     conn.close()
     return files
 
+
 def delete_file_logic(account_name, file_id):
-    """指定されたファイルをGoogle DriveとDBから削除する"""
+    # この関数は現在使われていないが、将来のために残す場合は
+    # delete_multiple_files_logic に処理を委譲するのが良い
+    files_to_delete = [{'account_name': account_name, 'file_id': file_id}]
+    success_count, _ = delete_multiple_files_logic(files_to_delete)
+    return success_count > 0
+
+
+
+def delete_multiple_files_logic(files_to_delete):
+    """複数のファイルのリストを受け取り、順に削除処理を行う (DB接続を最適化)"""
+    success_count = 0
+    error_count = 0
+
+    if not files_to_delete:
+        return 0, 0
+
+    # 最初に一度だけデータベースに接続
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+
     try:
-        # --- ステップ1: Google Driveからファイルを削除 ---
-        print(f"[{account_name}] のファイルID: {file_id} をGoogle Driveから削除します。")
-        creds = authenticate(account_name)
-        service = build('drive', 'v3', credentials=creds)
+        for file_info in files_to_delete:
+            account_name = file_info.get('account_name')
+            file_id = file_info.get('file_id')
 
-        # files().delete() を使ってファイルを削除
-        service.files().delete(fileId=file_id).execute()
-        print("Google Driveからの削除に成功しました。")
+            if not (account_name and file_id):
+                error_count += 1
+                continue # 次のループへ
 
-        # --- ステップ2: ローカルデータベースからファイルを削除 ---
-        print(f"データベースからファイルID: {file_id} を削除します。")
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
+            try:
+                # --- Google Driveからの削除 ---
+                print(f"[{account_name}] のファイルID: {file_id} をGoogle Driveから削除します。")
+                creds = authenticate(account_name)
+                service = build('drive', 'v3', credentials=creds)
+                service.files().delete(fileId=file_id).execute()
+                print("Google Driveからの削除に成功しました。")
 
-        # 'files' テーブルから該当する行を削除
-        cursor.execute('DELETE FROM files WHERE file_id = ?', (file_id,))
+                # --- データベースからの削除 ---
+                # 接続済みのカーソルを使って削除
+                cursor.execute('DELETE FROM files WHERE file_id = ?', (file_id,))
+                print("データベースからの削除をキューに追加しました。")
 
+                success_count += 1
+
+            except HttpError as error:
+                print(f"削除中にAPIエラーが発生しました: {error}")
+                if error.resp.status == 404:
+                    print("ファイルは既にDriveに存在しないようです。DBからの削除のみ行います。")
+                    cursor.execute('DELETE FROM files WHERE file_id = ?', (file_id,))
+                    success_count += 1 # 最終的にDBから消えれば成功とみなす
+                else:
+                    error_count += 1
+            except Exception as e:
+                print(f"削除中に予期せぬエラーが発生しました: {e}")
+                error_count += 1
+
+    finally:
+        # --- ループが全て終わった後に、一度だけ変更を確定して接続を閉じる ---
+        print("データベースの変更をコミットします。")
         conn.commit()
         conn.close()
-        print("データベースからの削除に成功しました。")
 
-        return True # 成功
-
-    except HttpError as error:
-        print(f"削除中にAPIエラーが発生しました: {error}")
-        # Drive上にはファイルが存在しないのにDBには残っている、という不整合を防ぐため
-        # 404 (Not Found) エラーの場合は、DBからの削除だけは試みる
-        if error.resp.status == 404:
-            print("ファイルは既にDriveに存在しないようです。DBからの削除を試みます。")
-            conn = sqlite3.connect(DATABASE_FILE)
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM files WHERE file_id = ?', (file_id,))
-            conn.commit()
-            conn.close()
-            return True # 結果としては成功とみなす
-        return False # 失敗
-    except Exception as e:
-        print(f"削除中に予期せぬエラーが発生しました: {e}")
-        return False # 失敗
+    return success_count, error_count
