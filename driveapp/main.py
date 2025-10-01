@@ -3,19 +3,45 @@
 
 import os.path
 import glob
-from googleapiclient.http import MediaFileUpload 
+from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+import sqlite3 # ← SQLite3ライブラリをインポート
+
+DATABASE_FILE = 'file_index.db' # データベースファイル名
+
+def init_database():
+    """データベースを初期化し、テーブルを作成する"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    # "files" という名前のテーブルを作成
+    # file_id: Google Drive上のID (主キー)
+    # name: ファイル名
+    # account_name: 保存先アカウント名
+    # mime_type: ファイルの種類 (将来の拡張用)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS files (
+            file_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            account_name TEXT NOT NULL,
+            mime_type TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+
+
 #アクセス権限の範囲を指定 (読み取り専用から、読み書き可能に変更)
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
 # 認証情報ファイル (client_secret....json) の名前をここに指定
 # ★★★ あなたのファイル名に書き換えてください ★★★
-CLIENT_SECRET_FILE = 'client_secret_94798413997-23kqbvko2vu14bh2nohubspb2ktsejla.apps.googleusercontent.com.json'
+CLIENT_SECRET_FILE = 'driveapp\client_secret_94798413997-23kqbvko2vu14bh2nohubspb2ktsejla.apps.googleusercontent.com.json3'
 
 def authenticate(account_name):
     """指定されたアカウント名で認証を行い、有効な認証情報を返す"""
@@ -368,3 +394,139 @@ def search_files_in_all_accounts(search_query, mime_type):
             print(f"[{account_name}] での検索中にエラー: {e}")
 
     return found_files
+
+def update_file_index():
+    """全アカウントのファイル情報を取得し、データベースのインデックスを更新する"""
+    print("ファイルインデックスの更新を開始します...")
+    all_files = []
+    token_files = glob.glob('token_*.json')
+    if not token_files:
+        return False
+
+    # APIから全ファイル情報を取得 (フィールドにmimeTypeを追加)
+    for token_file in token_files:
+        account_name = token_file.replace('token_', '').replace('.json', '')
+        try:
+            creds = authenticate(account_name)
+            service = build('drive', 'v3', credentials=creds)
+
+            # nextPageToken を使って全ページを取得するループを追加
+            page_token = None
+            while True:
+                response = service.files().list(
+                    q="'me' in owners", # ゴミ箱などを除き、自分がオーナーのファイルのみ
+                    fields='nextPageToken, files(id, name, mimeType)',
+                    pageSize=1000,
+                    pageToken=page_token
+                ).execute()
+
+                for item in response.get('files', []):
+                    item['account_name'] = account_name
+                    all_files.append(item)
+
+                page_token = response.get('nextPageToken', None)
+                if page_token is None:
+                    break
+        except Exception as e:
+            print(f"[{account_name}] でのファイル取得中にエラー: {e}")
+
+    # データベースに接続
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+
+    # 既存のデータを全て削除 (洗い替え)
+    cursor.execute('DELETE FROM files')
+
+    # 取得したファイル情報をデータベースに挿入
+    for file_info in all_files:
+        cursor.execute(
+            'INSERT INTO files (file_id, name, account_name, mime_type) VALUES (?, ?, ?, ?)',
+            (file_info['id'], file_info['name'], file_info['account_name'], file_info.get('mimeType'))
+        )
+
+    conn.commit()
+    conn.close()
+    print(f"インデックスの更新が完了しました。 {len(all_files)} 件のファイルを保存しました。")
+    return True
+
+def get_files_from_db():
+    """データベースから全ファイルリストを取得する"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    # 列名をキーとする辞書として結果を受け取る
+    conn.row_factory = sqlite3.Row 
+    cursor = conn.cursor()
+    cursor.execute('SELECT file_id, name, account_name FROM files ORDER BY name')
+    files = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return files
+
+def search_files_in_db(search_query, mime_type):
+    """データベース内でファイルを検索する"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    # SQLクエリを構築
+    query_parts = []
+    params = []
+
+    if search_query:
+        query_parts.append("name LIKE ?")
+        params.append(f"%{search_query}%") # 部分一致検索
+
+    if mime_type:
+        query_parts.append("mime_type = ?")
+        params.append(mime_type)
+
+    if not query_parts:
+        return []
+
+    sql_query = "SELECT file_id, name, account_name FROM files WHERE " + " AND ".join(query_parts) + " ORDER BY name"
+
+    cursor.execute(sql_query, params)
+    files = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return files
+
+def delete_file_logic(account_name, file_id):
+    """指定されたファイルをGoogle DriveとDBから削除する"""
+    try:
+        # --- ステップ1: Google Driveからファイルを削除 ---
+        print(f"[{account_name}] のファイルID: {file_id} をGoogle Driveから削除します。")
+        creds = authenticate(account_name)
+        service = build('drive', 'v3', credentials=creds)
+
+        # files().delete() を使ってファイルを削除
+        service.files().delete(fileId=file_id).execute()
+        print("Google Driveからの削除に成功しました。")
+
+        # --- ステップ2: ローカルデータベースからファイルを削除 ---
+        print(f"データベースからファイルID: {file_id} を削除します。")
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+
+        # 'files' テーブルから該当する行を削除
+        cursor.execute('DELETE FROM files WHERE file_id = ?', (file_id,))
+
+        conn.commit()
+        conn.close()
+        print("データベースからの削除に成功しました。")
+
+        return True # 成功
+
+    except HttpError as error:
+        print(f"削除中にAPIエラーが発生しました: {error}")
+        # Drive上にはファイルが存在しないのにDBには残っている、という不整合を防ぐため
+        # 404 (Not Found) エラーの場合は、DBからの削除だけは試みる
+        if error.resp.status == 404:
+            print("ファイルは既にDriveに存在しないようです。DBからの削除を試みます。")
+            conn = sqlite3.connect(DATABASE_FILE)
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM files WHERE file_id = ?', (file_id,))
+            conn.commit()
+            conn.close()
+            return True # 結果としては成功とみなす
+        return False # 失敗
+    except Exception as e:
+        print(f"削除中に予期せぬエラーが発生しました: {e}")
+        return False # 失敗

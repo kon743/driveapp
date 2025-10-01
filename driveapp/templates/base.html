@@ -24,6 +24,33 @@
         .main-nav { margin-left: 2em; }
         .main-nav a { font-size: 1em; margin-right: 1em; }
         .main-nav a:hover { text-decoration: underline; }
+          .btn-update-index {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 0.5em 1em;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-left: 1em;
+        }
+        .btn-delete {
+        background-color: #dc3545;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 4px;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+    }
+    .btn-delete:hover {
+        background-color: #c82333;
+    }
+     .flash.info {
+        background-color: #cce5ff;
+        color: #004085;
+        border-color: #b8daff;
+    }
     </style>
 </head>
 <body>
@@ -32,6 +59,9 @@
                     <nav class="main-nav">
                 <a href="/">トップ</a>
                 <a href="/files">全ファイル一覧</a>
+                     <form action="/update_index" method="post" style="margin: 0;">
+                    <button type="submit" class="btn-update-index">インデックス更新</button>
+                </form>
             </nav>
                 <form action="/search" method="get" class="search-form">
             <input type="text" name="query" placeholder="ファイル名を検索..." value="{{ query or '' }}">
@@ -62,7 +92,7 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="flash {{ category }}">{{ message }}</div>
+                    <div class="flash {{ category }}">{{ message | safe }}</div>
                 {% endfor %}
             {% endif %}
         {% endwith %}

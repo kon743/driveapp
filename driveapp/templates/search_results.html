@@ -26,9 +26,12 @@
                     <td>{{ file.name }}</td>
                     <td>{{ file.account_name }}</td>
                     <td>
-                        <a href="/download/{{ file.account_name }}/{{ file.id }}" class="btn-download">
+                        <a href="/download/{{ file.account_name }}/{{ file.file_id }}" class="btn-download">
                             ダウンロード
                         </a>
+                        <form action="/delete/{{ file.account_name }}/{{ file.file_id }}" method="post" style="display: inline;" onsubmit="return confirm('本当にこのファイルを削除しますか？');">
+                            <button type="submit" class="btn-delete">削除</button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}
