@@ -20,6 +20,7 @@
                 <tr>
                     <!-- ▼▼▼ 全選択チェックボックスを追加 ▼▼▼ -->
                     <th><input type="checkbox" id="selectAll"></th>
+                    <th>プレビュー</th>
                     <th>ファイル名</th>
                     <th>保存先アカウント</th>
                     <th>操作</th>
@@ -32,9 +33,20 @@
                     <td>
                         <input type="checkbox" name="selected_files" value="{{ file.account_name }}/{{ file.file_id }}" class="file-checkbox">
                     </td>
+                    <td>
+                        {% if file.thumbnail_link %}
+                            <!-- サムネイルがあれば表示 -->
+                            <img src="{{ file.thumbnail_link }}" alt="thumbnail" width="50">
+                        {% else %}
+                            <!--なければ汎用アイコンなどを表示（今回は空）-->
+                        {% endif %}
+                    </td>
                     <td>{{ file.name }}</td>
                     <td>{{ file.account_name }}</td>
                     <td>
+                    <td>
+                        <!-- ▼▼▼ ファイル名をプレビューへのリンクにする ▼▼▼ -->
+                        <a href="{{ file.web_view_link }}" target="_blank" title="クリックでプレビュー">
                         <a href="/download/{{ file.account_name }}/{{ file.file_id }}" class="btn-download">
                             ダウンロード
                         </a>

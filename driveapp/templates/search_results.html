@@ -11,7 +11,7 @@
 
     {% if files %}
         <p>{{ files|length }} 件のファイルが見つかりました。</p>
-        
+
         <form action="/delete_multiple" method="post">
             <div class="bulk-actions">
                 <button type="submit" class="btn-delete" onclick="return confirm('選択した全てのファイルを本当に削除しますか？');">
@@ -23,6 +23,7 @@
                 <thead>
                     <tr>
                         <th><input type="checkbox" id="selectAll"></th>
+                        <th>プレビュー</th>
                         <th>ファイル名</th>
                         <th>保存先アカウント</th>
                         <th>操作</th>
@@ -34,7 +35,16 @@
                         <td>
                             <input type="checkbox" name="selected_files" value="{{ file.account_name }}/{{ file.file_id }}" class="file-checkbox">
                         </td>
-                        <td>{{ file.name }}</td>
+                         <td>
+                            {% if file.thumbnail_link %}
+                                <img src="{{ file.thumbnail_link }}" alt="thumbnail" width="50">
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ file.web_view_link }}" target="_blank" title="クリックでプレビュー">
+               {{ file.name }}
+                            </a>
+                        </td>
                         <td>{{ file.account_name }}</td>
                         <td>
                             <a href="/download/{{ file.account_name }}/{{ file.file_id }}" class="btn-download">

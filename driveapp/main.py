@@ -17,22 +17,23 @@ DATABASE_FILE = 'file_index.db' # データベースファイル名
 def init_database():
     """データベースを初期化し、テーブルを作成する"""
     conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    # "files" という名前のテーブルを作成
-    # file_id: Google Drive上のID (主キー)
-    # name: ファイル名
-    # account_name: 保存先アカウント名
-    # mime_type: ファイルの種類 (将来の拡張用)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS files (
-            file_id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            account_name TEXT NOT NULL,
-            mime_type TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        # "files" テーブルの定義に thumbnail_link と web_view_link を追加
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS files (
+                file_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                account_name TEXT NOT NULL,
+                mime_type TEXT,
+                thumbnail_link TEXT,
+                web_view_link TEXT
+            )
+        ''')
+        conn.commit()
+    finally:
+        # こちらも安全のため finally で閉じるように修正
+        conn.close()
 
 
 
@@ -41,7 +42,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 
 # 認証情報ファイル (client_secret....json) の名前をここに指定
 # ★★★ あなたのファイル名に書き換えてください ★★★
-CLIENT_SECRET_FILE = 'driveapp\client_secret_94798413997-23kqbvko2vu14bh2nohubspb2ktsejla.apps.googleusercontent.com.json3'
+CLIENT_SECRET_FILE = r'driveapp\client_secret_94798413997-23kqbvko2vu14bh2nohubspb2ktsejla.apps.googleusercontent.com.json3'
 
 def authenticate(account_name):
     """指定されたアカウント名で認証を行い、有効な認証情報を返す"""
@@ -414,8 +415,8 @@ def update_file_index():
             page_token = None
             while True:
                 response = service.files().list(
-                    q="'me' in owners", # ゴミ箱などを除き、自分がオーナーのファイルのみ
-                    fields='nextPageToken, files(id, name, mimeType)',
+                    q="'me' in owners and trashed = false",
+                    fields='nextPageToken, files(id, name, mimeType, thumbnailLink, webViewLink)', # 正しいfields指定
                     pageSize=1000,
                     pageToken=page_token
                 ).execute()
@@ -427,44 +428,57 @@ def update_file_index():
                 page_token = response.get('nextPageToken', None)
                 if page_token is None:
                     break
+
         except Exception as e:
             print(f"[{account_name}] でのファイル取得中にエラー: {e}")
 
     # データベースに接続
     conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    # 既存のデータを全て削除 (洗い替え)
-    cursor.execute('DELETE FROM files')
+        cursor.execute('DELETE FROM files')
 
-    # 取得したファイル情報をデータベースに挿入
-    for file_info in all_files:
-        cursor.execute(
-            'INSERT INTO files (file_id, name, account_name, mime_type) VALUES (?, ?, ?, ?)',
-            (file_info['id'], file_info['name'], file_info['account_name'], file_info.get('mimeType'))
-        )
+        for file_info in all_files:
+            cursor.execute(
+                'INSERT INTO files (file_id, name, account_name, mime_type, thumbnail_link, web_view_link) VALUES (?, ?, ?, ?, ?, ?)',
+                (
+                    file_info['id'],
+                    file_info['name'],
+                    file_info['account_name'],
+                    file_info.get('mimeType'),
+                    file_info.get('thumbnailLink'),
+                    file_info.get('webViewLink')
+                )
+            )
 
-    conn.commit()
-    conn.close()
-    print(f"インデックスの更新が完了しました。 {len(all_files)} 件のファイルを保存しました。")
-    return True
+        conn.commit()
+        print(f"インデックスの更新が完了しました。 {len(all_files)} 件のファイルを保存しました。")
+        return True
+    finally:
+        # 成功してもエラーでも、必ず接続を閉じる
+        conn.close()
+
 
 def get_files_from_db():
     """データベースから全ファイルリストを取得する"""
     conn = sqlite3.connect(DATABASE_FILE)
     # 列名をキーとする辞書として結果を受け取る
     conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute('SELECT file_id, name, account_name FROM files ORDER BY name')
-    files = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return files
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT file_id, name, account_name, thumbnail_link, web_view_link FROM files ORDER BY name')
+        files = [dict(row) for row in cursor.fetchall()]
+        return files
+    finally:
+        # 成功してもエラーでも、必ず接続を閉じる
+        conn.close()
+
 
 def search_files_in_db(search_query, mime_type):
     """データベース内でファイルを検索する"""
     conn = sqlite3.connect(DATABASE_FILE)
     conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
 
     # SQLクエリを構築
     query_parts = []
@@ -481,12 +495,16 @@ def search_files_in_db(search_query, mime_type):
     if not query_parts:
         return []
 
-    sql_query = "SELECT file_id, name, account_name FROM files WHERE " + " AND ".join(query_parts) + " ORDER BY name"
-
-    cursor.execute(sql_query, params)
-    files = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return files
+    try:
+        # ... (SQLクエリ構築部分は変更なし) ...
+        cursor = conn.cursor()
+        sql_query = "SELECT file_id, name, account_name, thumbnail_link, web_view_link FROM files WHERE " + " AND ".join(query_parts) + " ORDER BY name"
+        cursor.execute(sql_query, params)
+        files = [dict(row) for row in cursor.fetchall()]
+        return files
+    finally:
+        # 成功してもエラーでも、必ず接続を閉じる
+        conn.close()
 
 
 def delete_file_logic(account_name, file_id):
